@@ -56,9 +56,9 @@ export async function createMercadoPagoPreference(plan: 'Standard' | 'Elite', cy
                     email: user.email
                 },
                 back_urls: {
-                    success: `${origin}/dashboard?status=success`,
+                    success: `${origin}/payment-pending`,
                     failure: `${origin}/checkout?status=failure`,
-                    pending: `${origin}/checkout?status=pending`
+                    pending: `${origin}/payment-pending`
                 },
                 auto_return: 'approved',
                 notification_url: 'https://apollyoncloud.com/api/webhook',
