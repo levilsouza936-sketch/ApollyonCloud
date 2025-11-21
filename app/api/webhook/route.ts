@@ -1,7 +1,7 @@
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { MercadoPagoConfig, Payment, MerchantOrder } from 'mercadopago'
-import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 
 const client = new MercadoPagoConfig({
     accessToken: process.env.MP_ACCESS_TOKEN!,
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
 
         // Conectar ao Supabase
         console.log('WEBHOOK: Conectando ao Supabase...')
-        const supabase = await createClient()
+        const supabase = createAdminClient()
 
         // Calcular data de expiração
         const expiresAt = new Date()
