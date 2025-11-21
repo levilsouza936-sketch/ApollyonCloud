@@ -33,6 +33,11 @@ function PaymentPendingContent() {
     }
 
     useEffect(() => {
+        // Solicitar permissão para notificações
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission()
+        }
+
         // Iniciar verificação imediatamente
         checkPaymentStatus()
 
@@ -44,6 +49,15 @@ function PaymentPendingContent() {
 
         return () => clearInterval(interval)
     }, [attempts])
+
+    useEffect(() => {
+        if (status === 'approved' && 'Notification' in window && Notification.permission === 'granted') {
+            new Notification('Pagamento Aprovado! 🚀', {
+                body: 'Sua assinatura da Apollyon Cloud foi ativada com sucesso.',
+                icon: '/favicon.ico' // Opcional: adicione um ícone se tiver
+            })
+        }
+    }, [status])
 
     return (
         <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">

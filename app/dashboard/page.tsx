@@ -158,7 +158,7 @@ export default async function Dashboard() {
                                 <div className="pt-6 border-t border-slate-800">
                                     <h3 className="text-lg font-medium mb-4">Como acessar sua máquina?</h3>
                                     <a
-                                        href="https://discord.gg/seu-link-aqui"
+                                        href="https://discord.gg/4xQs23qkYA"
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="flex items-center justify-center gap-2 w-full py-4 bg-[#5865F2] hover:bg-[#4752C4] text-white rounded-xl font-semibold transition-all"

@@ -28,7 +28,7 @@ export default function CheckoutSuccess() {
 
                 <div className="space-y-3">
                     <a
-                        href="https://discord.gg/seu-link-aqui"
+                        href="https://discord.gg/4xQs23qkYA"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="block w-full py-3 bg-[#5865F2] hover:bg-[#4752C4] text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2"
