@@ -22,9 +22,21 @@ export default async function Checkout({
     const isElite = planName === 'Elite'
     const isMonthly = cycle === 'monthly'
 
-    const price = isElite
-        ? (isMonthly ? 129.90 : 74.99)
-        : (isMonthly ? 89.90 : 0.15)
+    // Buscar preço do produto no banco de dados
+    const { data: product } = await supabase
+        .from('products')
+        .select('price')
+        .ilike('name', `%${planName}%`)
+        .eq('cycle', cycle)
+        .eq('active', true)
+        .single()
+
+    const price = product ? Number(product.price) : 0
+
+    if (!product) {
+        // Fallback seguro ou redirecionamento se produto não existir
+        console.error('Produto não encontrado para checkout:', planName, cycle)
+    }
 
     // Verificar se há assinatura ativa (para mostrar aviso de upgrade)
     const { data: activeSubscriptions } = await supabase

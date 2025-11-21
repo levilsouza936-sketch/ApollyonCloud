@@ -140,7 +140,6 @@ export async function POST(request: Request) {
             status: 'active',
             product_id: product.id,
             expires_at: expiresAt.toISOString(),
-
         }
         console.log('WEBHOOK: Dados da assinatura:', JSON.stringify(subscriptionData, null, 2))
 
@@ -152,6 +151,47 @@ export async function POST(request: Request) {
         if (insertError) {
             console.error('WEBHOOK: ❌ Erro ao inserir assinatura:', insertError)
             return NextResponse.json({ received: true, error: 'subscription_insert_failed', details: insertError }, { status: 200 })
+        }
+
+        // Registrar Pedido
+        console.log('WEBHOOK: Registrando pedido...')
+        const orderData = {
+            user_id: userId,
+            product_id: product.id,
+            status: 'completed',
+            payment_id: paymentId,
+            amount: payment.transaction_amount,
+            metadata: payment.metadata
+        }
+
+        const { error: orderError } = await supabase
+            .from('orders')
+            .insert(orderData)
+
+        if (orderError) {
+            console.error('WEBHOOK: ⚠️ Erro ao registrar pedido (não crítico):', orderError)
+        } else {
+            console.log('WEBHOOK: ✅ Pedido registrado com sucesso')
+        }
+
+        // Processar Cupom
+        const couponId = payment.metadata?.coupon_id
+        if (couponId) {
+            console.log(`WEBHOOK: Processando uso do cupom ${couponId}...`)
+            const { error: couponError } = await supabase.rpc('increment_coupon_usage', { coupon_id: couponId })
+
+            // Se RPC falhar (se não existir), tentar update direto
+            if (couponError) {
+                console.log('WEBHOOK: RPC falhou, tentando update direto...', couponError)
+                const { error: updateError } = await supabase
+                    .from('coupons')
+                    .update({ used_count: ((await supabase.from('coupons').select('used_count').eq('id', couponId).single()).data?.used_count || 0) + 1 })
+                    .eq('id', couponId)
+
+                if (updateError) {
+                    console.error('WEBHOOK: ⚠️ Erro ao atualizar uso do cupom:', updateError)
+                }
+            }
         }
 
         console.log('WEBHOOK: ✅✅✅ ASSINATURA CRIADA COM SUCESSO! ✅✅✅')

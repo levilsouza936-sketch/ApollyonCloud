@@ -45,6 +45,9 @@ export default async function Dashboard() {
         isCancelled = hoursSinceExpired > gracePeriodHours
     }
 
+    // Verificar se é admin
+    const isAdmin = profile?.role === 'admin'
+
     // Calcular próximo upgrade lógico (só se ativa)
     let nextUpgrade: { plan: string; cycle: string; label: string } | null = null
 
@@ -107,6 +110,14 @@ export default async function Dashboard() {
                                 </div>
                             )}
                         </div>
+                        {isAdmin && (
+                            <Link
+                                href="/admin"
+                                className="px-3 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg transition-colors text-sm font-semibold"
+                            >
+                                🛠️ Admin Panel
+                            </Link>
+                        )}
                         <form action={signOut}>
                             <button className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white" title="Sair">
                                 <LogOut className="w-5 h-5" />

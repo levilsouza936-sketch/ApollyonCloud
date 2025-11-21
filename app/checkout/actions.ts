@@ -1,10 +1,14 @@
 'use server'
 
-import { createMercadoPagoPreference } from '@/app/actions/mercadopago'
+import { createMercadoPagoPreference, validateCoupon as validateCouponMP } from '@/app/actions/mercadopago'
 
-export async function handleCheckout(plan: string, cycle: string): Promise<{ url?: string, error?: string, details?: string }> {
+export async function validateCoupon(code: string) {
+    return await validateCouponMP(code)
+}
+
+export async function handleCheckout(plan: string, cycle: string, couponCode?: string): Promise<{ url?: string, error?: string, details?: string }> {
     try {
-        const url = await createMercadoPagoPreference(plan as 'Standard' | 'Elite', cycle as 'weekly' | 'monthly')
+        const url = await createMercadoPagoPreference(plan, cycle, couponCode)
         return { url }
     } catch (error: any) {
         console.error('Erro no checkout:', error)

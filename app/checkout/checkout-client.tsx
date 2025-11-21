@@ -31,12 +31,51 @@ export default function CheckoutClient({
     const [loading, setLoading] = useState(false)
     const [checkoutError, setCheckoutError] = useState<string | null>(null)
 
+    // Estados do cupom
+    const [couponCode, setCouponCode] = useState('')
+    const [couponApplied, setCouponApplied] = useState(false)
+    const [discount, setDiscount] = useState(0)
+    const [validatingCoupon, setValidatingCoupon] = useState(false)
+    const [couponMessage, setCouponMessage] = useState('')
+
+    const finalPrice = Math.max(0, price - discount)
+
+    const handleApplyCoupon = async () => {
+        setValidatingCoupon(true)
+        setCouponMessage('')
+
+        try {
+            const { validateCoupon } = await import('./actions')
+            const result = await validateCoupon(couponCode)
+
+            if (result.valid && result.coupon) {
+                setCouponApplied(true)
+                setCouponMessage('Cupom aplicado com sucesso!')
+
+                if (result.coupon.discount_type === 'percent') {
+                    setDiscount(price * (result.coupon.discount_value / 100))
+                } else {
+                    setDiscount(result.coupon.discount_value)
+                }
+            } else {
+                setCouponMessage(result.message || 'Cupom inválido')
+                setCouponApplied(false)
+                setDiscount(0)
+            }
+        } catch (error) {
+            console.error('Erro ao validar cupom:', error)
+            setCouponMessage('Erro ao validar cupom')
+        } finally {
+            setValidatingCoupon(false)
+        }
+    }
+
     const handlePayment = async () => {
         setLoading(true)
         setCheckoutError(null)
 
         try {
-            const result = await handleCheckout(planName, cycle)
+            const result = await handleCheckout(planName, cycle, couponApplied ? couponCode : undefined)
 
             if (result.error) {
                 setCheckoutError(result.details || result.error)
@@ -114,9 +153,56 @@ export default function CheckoutClient({
 
                         <div className="flex justify-between items-center py-4 border-b border-slate-800">
                             <span className="text-slate-300">Total a pagar</span>
-                            <span className="text-3xl font-bold text-white">
-                                R$ {price.toFixed(2).replace('.', ',')}
-                            </span>
+                            <div className="text-right">
+                                {discount > 0 && (
+                                    <span className="block text-sm text-slate-400 line-through">
+                                        R$ {price.toFixed(2).replace('.', ',')}
+                                    </span>
+                                )}
+                                <span className="text-3xl font-bold text-white">
+                                    R$ {finalPrice.toFixed(2).replace('.', ',')}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Área de Cupom */}
+                        <div className="space-y-2">
+                            <label className="text-sm text-slate-400">Possui um cupom?</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={couponCode}
+                                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                                    placeholder="Código do cupom"
+                                    className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm uppercase"
+                                    disabled={couponApplied}
+                                />
+                                {couponApplied ? (
+                                    <button
+                                        onClick={() => {
+                                            setCouponApplied(false)
+                                            setCouponCode('')
+                                            setDiscount(0)
+                                        }}
+                                        className="px-3 py-2 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg text-sm font-medium transition-colors"
+                                    >
+                                        Remover
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={handleApplyCoupon}
+                                        disabled={validatingCoupon || !couponCode}
+                                        className="px-3 py-2 bg-violet-600 hover:bg-violet-500 disabled:bg-slate-800 disabled:text-slate-500 rounded-lg text-sm font-medium transition-colors"
+                                    >
+                                        {validatingCoupon ? '...' : 'Aplicar'}
+                                    </button>
+                                )}
+                            </div>
+                            {couponMessage && (
+                                <p className={`text-xs ${couponApplied ? 'text-green-400' : 'text-red-400'}`}>
+                                    {couponMessage}
+                                </p>
+                            )}
                         </div>
 
                         <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl flex gap-3">

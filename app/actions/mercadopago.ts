@@ -2,7 +2,7 @@
 
 import { MercadoPagoConfig, Preference } from 'mercadopago'
 import { createClient } from '@/utils/supabase/server'
-import { redirect } from 'next/navigation'
+import { createAdminClient } from '@/utils/supabase/admin'
 
 // Configura o cliente do Mercado Pago
 const client = new MercadoPagoConfig({
@@ -10,18 +10,36 @@ const client = new MercadoPagoConfig({
     options: { timeout: 5000 }
 })
 
-const PLANS = {
-    'Standard': {
-        'weekly': { price: 0.15, title: 'Apollyon Cloud - Standard Semanal (TESTE)' },
-        'monthly': { price: 89.90, title: 'Apollyon Cloud - Standard Mensal' }
-    },
-    'Elite': {
-        'weekly': { price: 74.99, title: 'Apollyon Cloud - Elite Semanal' },
-        'monthly': { price: 129.90, title: 'Apollyon Cloud - Elite Mensal' }
+export async function validateCoupon(code: string) {
+    const supabase = createAdminClient()
+
+    const { data: coupon, error } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('code', code.toUpperCase())
+        .eq('active', true)
+        .single()
+
+    if (error || !coupon) {
+        return { valid: false, message: 'Cupom inválido' }
     }
+
+    if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
+        return { valid: false, message: 'Cupom expirado' }
+    }
+
+    if (coupon.max_uses && coupon.used_count >= coupon.max_uses) {
+        return { valid: false, message: 'Limite de uso do cupom atingido' }
+    }
+
+    return { valid: true, coupon }
 }
 
-export async function createMercadoPagoPreference(plan: 'Standard' | 'Elite', cycle: 'weekly' | 'monthly') {
+export async function createMercadoPagoPreference(
+    plan: string,
+    cycle: string,
+    couponCode?: string
+) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -29,13 +47,37 @@ export async function createMercadoPagoPreference(plan: 'Standard' | 'Elite', cy
         throw new Error('Usuário não autenticado')
     }
 
-    const selectedPlan = PLANS[plan][cycle]
+    // Buscar produto no banco de dados
+    const { data: product, error: productError } = await supabase
+        .from('products')
+        .select('*')
+        .ilike('name', `%${plan}%`)
+        .eq('cycle', cycle)
+        .eq('active', true)
+        .single()
 
-    if (!selectedPlan) {
-        throw new Error('Plano inválido')
+    if (productError || !product) {
+        console.error('Erro ao buscar produto:', productError)
+        throw new Error('Produto indisponível ou não encontrado')
     }
 
-    // URL base para retorno do usuário (sempre localhost para manter a sessão)
+    let finalPrice = Number(product.price)
+    let couponId = null
+
+    // Aplicar cupom se fornecido
+    if (couponCode) {
+        const { valid, coupon } = await validateCoupon(couponCode)
+        if (valid && coupon) {
+            couponId = coupon.id
+            if (coupon.discount_type === 'percent') {
+                finalPrice = finalPrice * (1 - (coupon.discount_value / 100))
+            } else {
+                finalPrice = Math.max(0, finalPrice - coupon.discount_value)
+            }
+        }
+    }
+
+    // URL base para retorno do usuário
     const origin = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
     const preference = new Preference(client)
@@ -45,10 +87,10 @@ export async function createMercadoPagoPreference(plan: 'Standard' | 'Elite', cy
             body: {
                 items: [
                     {
-                        id: `${plan.toLowerCase()}-${cycle}`,
-                        title: selectedPlan.title,
+                        id: product.id,
+                        title: product.name,
                         quantity: 1,
-                        unit_price: selectedPlan.price,
+                        unit_price: Number(finalPrice.toFixed(2)),
                         currency_id: 'BRL'
                     }
                 ],
@@ -66,7 +108,9 @@ export async function createMercadoPagoPreference(plan: 'Standard' | 'Elite', cy
                 metadata: {
                     user_id: user.id,
                     plan: plan,
-                    cycle: cycle
+                    cycle: cycle,
+                    coupon_id: couponId,
+                    original_price: product.price
                 }
             }
         })
@@ -81,13 +125,6 @@ export async function createMercadoPagoPreference(plan: 'Standard' | 'Elite', cy
 
     } catch (error) {
         console.error('Erro CRÍTICO ao criar preferência MP:', error)
-        // Logar detalhes específicos se for erro da API do MP
-        if (typeof error === 'object' && error !== null && 'cause' in error) {
-            console.error('Causa do erro MP:', (error as any).cause)
-        }
-        if (typeof error === 'object' && error !== null && 'message' in error) {
-            console.error('Mensagem do erro MP:', (error as any).message)
-        }
         throw error
     }
 }
