@@ -1,3 +1,4 @@
+```typescript
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -26,7 +27,7 @@ export default async function Checkout({
 
     const price = isElite
         ? (isMonthly ? 129.90 : 74.99)
-        : (isMonthly ? 89.90 : 1.00)
+        : (isMonthly ? 89.90 : 0.15)
 
     // Verificar se há assinatura ativa (para mostrar aviso de upgrade)
     const { data: activeSubscriptions } = await supabase
@@ -124,3 +125,4 @@ export default async function Checkout({
         </main>
     )
 }
+```

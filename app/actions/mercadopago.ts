@@ -12,7 +12,7 @@ const client = new MercadoPagoConfig({
 
 const PLANS = {
     'Standard': {
-        'weekly': { price: 1.00, title: 'Apollyon Cloud - Standard Semanal (TESTE)' },
+        'weekly': { price: 0.15, title: 'Apollyon Cloud - Standard Semanal (TESTE)' },
         'monthly': { price: 89.90, title: 'Apollyon Cloud - Standard Mensal' }
     },
     'Elite': {
