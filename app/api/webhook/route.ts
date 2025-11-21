@@ -9,6 +9,7 @@ const client = new MercadoPagoConfig({
 })
 
 export async function POST(request: Request) {
+    console.log('WEBHOOK: Método da requisição:', request.method)
     try {
         console.log('========================================')
         console.log('WEBHOOK: Recebido POST')
@@ -139,12 +140,7 @@ export async function POST(request: Request) {
             status: 'active',
             product_id: product.id,
             expires_at: expiresAt.toISOString(),
-            metadata: {
-                payment_id: paymentId,
-                cycle: cycle,
-                amount: payment.transaction_amount,
-                payment_method: payment.payment_method_id
-            }
+
         }
         console.log('WEBHOOK: Dados da assinatura:', JSON.stringify(subscriptionData, null, 2))
 
