@@ -8,104 +8,86 @@ const client = new MercadoPagoConfig({
     options: { timeout: 5000 }
 })
 
-// Array para armazenar últimas requisições (em memória, só para debug)
-const lastWebhookCalls: any[] = []
-
-export async function GET() {
-    return NextResponse.json({
-        lastCalls: lastWebhookCalls.slice(-5),
-        timestamp: new Date().toISOString()
-    })
-}
-
 export async function POST(request: Request) {
-    const startTime = Date.now()
+    console.log('========================================')
+    console.log('WEBHOOK: Recebido POST')
+    console.log('========================================')
 
     try {
         const body = await request.json()
-        const headersList = headers()
-
-        const debugInfo: any = {
-            timestamp: new Date().toISOString(),
-            body: body,
-            headers: {
-                'x-signature': headersList.get('x-signature'),
-                'x-request-id': headersList.get('x-request-id'),
-            },
-            steps: []
-        }
-
-        // Salvar para debug
-        lastWebhookCalls.push(debugInfo)
-        if (lastWebhookCalls.length > 10) lastWebhookCalls.shift()
-
-        debugInfo.steps.push('Webhook recebido')
-        console.log('=== WEBHOOK RECEBIDO ===')
-        console.log('Body:', JSON.stringify(body, null, 2))
+        console.log('WEBHOOK: Body completo:', JSON.stringify(body, null, 2))
 
         // Verificar se é evento de pagamento
         if (body.type !== 'payment') {
-            debugInfo.steps.push(`Evento ignorado: ${body.type}`)
-            console.log(`Evento ignorado (não é pagamento): ${body.type}`)
-            return NextResponse.json({ received: true, debug: debugInfo }, { status: 200 })
+            console.log(`WEBHOOK: Evento ignorado (tipo: ${body.type})`)
+            return NextResponse.json({ received: true, ignored: true }, { status: 200 })
         }
 
         const paymentId = body.data?.id
         if (!paymentId) {
-            debugInfo.steps.push('Erro: ID de pagamento ausente')
-            debugInfo.error = 'Payment ID missing'
-            console.error('ID de pagamento ausente no body')
-            return NextResponse.json({ received: true, debug: debugInfo }, { status: 200 })
+            console.error('WEBHOOK: ❌ ID de pagamento ausente no body.data.id')
+            return NextResponse.json({ received: true, error: 'no_payment_id' }, { status: 200 })
         }
 
-        debugInfo.paymentId = paymentId
-        debugInfo.steps.push(`Processando pagamento ${paymentId}`)
-        console.log(`Processando pagamento ${paymentId}`)
+        console.log(`WEBHOOK: ✅ Processando pagamento ID: ${paymentId}`)
+        console.log(`WEBHOOK: Action: ${body.action}`)
 
         // Buscar informações do pagamento no Mercado Pago
         const paymentClient = new Payment(client)
         let payment
 
         try {
+            console.log(`WEBHOOK: Buscando pagamento ${paymentId} na API do MP...`)
             payment = await paymentClient.get({ id: paymentId })
-            debugInfo.steps.push(`Pagamento encontrado: ${payment.status}`)
-            debugInfo.paymentStatus = payment.status
-            debugInfo.paymentMetadata = payment.metadata
-            console.log(`Status do pagamento: ${payment.status}`)
-            console.log(`Metadados:`, JSON.stringify(payment.metadata, null, 2))
+            console.log(`WEBHOOK: ✅ Pagamento encontrado!`)
+            console.log(`WEBHOOK: Status: ${payment.status}`)
+            console.log(`WEBHOOK: Status Detail: ${payment.status_detail}`)
+            console.log(`WEBHOOK: Payment Method: ${payment.payment_method_id}`)
+            console.log(`WEBHOOK: Amount: ${payment.transaction_amount}`)
+            console.log(`WEBHOOK: Payer Email: ${payment.payer?.email}`)
+            console.log(`WEBHOOK: External Reference: ${payment.external_reference}`)
+            console.log(`WEBHOOK: Metadata completo:`, JSON.stringify(payment.metadata, null, 2))
         } catch (error: any) {
-            debugInfo.steps.push('Erro ao buscar pagamento na API do MP')
-            debugInfo.error = error.message
-            console.error(`Erro ao buscar pagamento ${paymentId}:`, error)
-            return NextResponse.json({ received: true, debug: debugInfo }, { status: 200 })
+            console.error(`WEBHOOK: ❌ Erro ao buscar pagamento ${paymentId}:`, error?.message || error)
+            return NextResponse.json({ received: true, error: 'payment_fetch_failed' }, { status: 200 })
         }
 
         // Processar apenas pagamentos aprovados
         if (payment.status !== 'approved') {
-            debugInfo.steps.push(`Pagamento não aprovado (status: ${payment.status})`)
-            console.log(`Pagamento ${paymentId} não está aprovado`)
-            return NextResponse.json({ received: true, debug: debugInfo }, { status: 200 })
+            console.log(`WEBHOOK: ⏳ Pagamento não aprovado ainda (status: ${payment.status})`)
+            return NextResponse.json({ received: true, status: payment.status }, { status: 200 })
         }
 
+        console.log('WEBHOOK: 🎉 Pagamento APROVADO! Processando assinatura...')
+
         // Extrair metadados
-        const userId = payment.metadata?.user_id
+        const userId = payment.metadata?.user_id || payment.external_reference
         const plan = payment.metadata?.plan
         const cycle = payment.metadata?.cycle
 
-        debugInfo.extractedMetadata = { userId, plan, cycle }
-        debugInfo.steps.push('Metadados extraídos')
-        console.log('Metadados extraídos:', { userId, plan, cycle })
+        console.log('WEBHOOK: Metadados extraídos:')
+        console.log(`  - User ID: ${userId}`)
+        console.log(`  - Plan: ${plan}`)
+        console.log(`  - Cycle: ${cycle}`)
 
-        if (!userId || !plan || !cycle) {
-            debugInfo.steps.push('Erro: Metadados incompletos')
-            debugInfo.error = 'Missing metadata fields'
-            console.error('Metadados incompletos')
-            return NextResponse.json({ received: true, debug: debugInfo }, { status: 200 })
+        if (!userId) {
+            console.error('WEBHOOK: ❌ user_id ausente nos metadados E no external_reference')
+            return NextResponse.json({ received: true, error: 'missing_user_id' }, { status: 200 })
+        }
+
+        if (!plan) {
+            console.error('WEBHOOK: ❌ plan ausente nos metadados')
+            return NextResponse.json({ received: true, error: 'missing_plan' }, { status: 200 })
+        }
+
+        if (!cycle) {
+            console.error('WEBHOOK: ❌ cycle ausente nos metadados')
+            return NextResponse.json({ received: true, error: 'missing_cycle' }, { status: 200 })
         }
 
         // Conectar ao Supabase
+        console.log('WEBHOOK: Conectando ao Supabase...')
         const supabase = await createClient()
-        debugInfo.steps.push('Conectado ao Supabase')
 
         // Calcular data de expiração
         const expiresAt = new Date()
@@ -114,65 +96,76 @@ export async function POST(request: Request) {
         } else {
             expiresAt.setMonth(expiresAt.getMonth() + 1)
         }
-        debugInfo.expiresAt = expiresAt.toISOString()
-        debugInfo.steps.push(`Data de expiração calculada: ${expiresAt.toISOString()}`)
+        console.log(`WEBHOOK: Data de expiração calculada: ${expiresAt.toISOString()}`)
 
         // Buscar produto
+        console.log(`WEBHOOK: Buscando produto com name ILIKE '%${plan}%'...`)
         const { data: product, error: productError } = await supabase
             .from('products')
-            .select('id')
+            .select('id, name')
             .ilike('name', `%${plan}%`)
             .single()
 
-        if (productError || !product) {
-            debugInfo.steps.push('Erro: Produto não encontrado')
-            debugInfo.productError = productError
-            console.error('Produto não encontrado:', productError)
-            return NextResponse.json({ received: true, debug: debugInfo }, { status: 200 })
+        if (productError) {
+            console.error('WEBHOOK: ❌ Erro ao buscar produto:', productError)
+            return NextResponse.json({ received: true, error: 'product_query_error', details: productError }, { status: 200 })
         }
 
-        debugInfo.productId = product.id
-        debugInfo.steps.push(`Produto encontrado: ${product.id}`)
-        console.log(`Produto ${plan} encontrado (ID: ${product.id})`)
+        if (!product) {
+            console.error(`WEBHOOK: ❌ Produto não encontrado com name ILIKE '%${plan}%'`)
+
+            // Listar todos os produtos para debug
+            const { data: allProducts } = await supabase.from('products').select('id, name')
+            console.log('WEBHOOK: Produtos disponíveis no banco:', JSON.stringify(allProducts, null, 2))
+
+            return NextResponse.json({ received: true, error: 'product_not_found' }, { status: 200 })
+        }
+
+        console.log(`WEBHOOK: ✅ Produto encontrado: ${product.name} (ID: ${product.id})`)
 
         // Criar assinatura
-        const { error: insertError, data: insertData } = await supabase
+        console.log('WEBHOOK: Inserindo assinatura no banco de dados...')
+        const subscriptionData = {
+            user_id: userId,
+            status: 'active',
+            product_id: product.id,
+            expires_at: expiresAt.toISOString(),
+            metadata: {
+                payment_id: paymentId,
+                cycle: cycle,
+                amount: payment.transaction_amount,
+                payment_method: payment.payment_method_id
+            }
+        }
+        console.log('WEBHOOK: Dados da assinatura:', JSON.stringify(subscriptionData, null, 2))
+
+        const { data: subscription, error: insertError } = await supabase
             .from('subscriptions')
-            .insert({
-                user_id: userId,
-                status: 'active',
-                product_id: product.id,
-                expires_at: expiresAt.toISOString(),
-                metadata: {
-                    payment_id: paymentId,
-                    cycle: cycle
-                }
-            })
+            .insert(subscriptionData)
             .select()
 
         if (insertError) {
-            debugInfo.steps.push('Erro ao criar assinatura no DB')
-            debugInfo.insertError = insertError
-            console.error('Erro ao criar assinatura:', insertError)
-            return NextResponse.json({ received: true, debug: debugInfo }, { status: 200 })
+            console.error('WEBHOOK: ❌ Erro ao inserir assinatura:', insertError)
+            return NextResponse.json({ received: true, error: 'subscription_insert_failed', details: insertError }, { status: 200 })
         }
 
-        debugInfo.steps.push('✅ Assinatura criada com sucesso!')
-        debugInfo.subscriptionData = insertData
-        debugInfo.processingTime = Date.now() - startTime
-        console.log('✅ Assinatura criada com sucesso!')
-        console.log('Tempo de processamento:', debugInfo.processingTime, 'ms')
+        console.log('WEBHOOK: ✅✅✅ ASSINATURA CRIADA COM SUCESSO! ✅✅✅')
+        console.log('WEBHOOK: Assinatura:', JSON.stringify(subscription, null, 2))
+        console.log('========================================')
 
-        return NextResponse.json({ received: true, status: 'subscription_created', debug: debugInfo }, { status: 200 })
+        return NextResponse.json({
+            received: true,
+            status: 'subscription_created',
+            subscription_id: subscription?.[0]?.id
+        }, { status: 200 })
 
     } catch (error: any) {
-        console.error('Erro crítico no webhook:', error)
-        const errorInfo = {
-            timestamp: new Date().toISOString(),
-            error: error.message,
-            stack: error.stack
-        }
-        lastWebhookCalls.push(errorInfo)
-        return NextResponse.json({ received: true, error: 'Internal error', debug: errorInfo }, { status: 200 })
+        console.error('WEBHOOK: ❌❌❌ ERRO CRÍTICO ❌❌❌')
+        console.error('WEBHOOK: Error:', error?.message || error)
+        console.error('WEBHOOK: Stack:', error?.stack)
+        console.log('========================================')
+
+        // Sempre retornar 200 para evitar retry infinito do MP
+        return NextResponse.json({ received: true, error: 'internal_error', message: error?.message }, { status: 200 })
     }
 }
