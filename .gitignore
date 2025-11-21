@@ -38,3 +38,5 @@ next-env.d.ts
 # Supabase
 supabase/config.toml
 supabase/.temp
+
+.vercel
