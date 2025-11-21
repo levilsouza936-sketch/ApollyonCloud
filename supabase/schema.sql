@@ -104,4 +104,26 @@ values
   ('Standard', 'Máquina Virtual Básica para Jogos Leves', 49.90, ARRAY['4 vCPU', '8GB RAM', 'GTX 1060', 'Acesso 24/7']),
   ('Elite', 'Máquina Virtual Premium para Jogos Pesados', 89.90, ARRAY['8 vCPU', '16GB RAM', 'RTX 3060', 'Acesso 24/7', 'Prioridade na Fila']);
 
+-- 6. TABELA DE ANÚNCIOS (ANNOUNCEMENTS)
+-- Popups promocionais que aparecem no site
+create table public.announcements (
+  id uuid default gen_random_uuid() primary key,
+  title text not null,
+  description text,
+  image_url text not null, -- URL da imagem hospedada (pode usar Supabase Storage ou URL externa)
+  button_text text default 'Ver Oferta',
+  button_link text, -- Link para onde o botão direciona (ex: /checkout, página externa, etc)
+  active boolean default true,
+  show_once_per_session boolean default true, -- Se true, mostra apenas 1x por sessão do navegador
+  expires_at timestamp with time zone, -- Data de expiração (opcional)
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- RLS: Anúncios são públicos para leitura
+alter table public.announcements enable row level security;
+
+create policy "Announcements are viewable by everyone."
+  on announcements for select
+  using ( true );
+
 -- FIM DO SCRIPT

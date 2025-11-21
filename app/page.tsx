@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Check, Gamepad2, Server, Shield, Cpu, HardDrive, Zap } from 'lucide-react'
 import PricingSection from '@/components/PricingSection'
 import { signInWithDiscord } from '@/app/actions'
+import AnnouncementPopup from '@/components/AnnouncementPopup'
 
 export default async function Home() {
   const supabase = createClient()
@@ -43,7 +44,14 @@ export default async function Home() {
     }
   }
 
-
+  // Buscar anúncios ativos
+  const { data: announcements } = await supabase
+    .from('announcements')
+    .select('id, title, description, image_url, button_text, button_link, show_once_per_session')
+    .eq('active', true)
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+    .order('created_at', { ascending: false })
+    .limit(1)
 
   // Buscar preços dos produtos
   const { data: products } = await supabase
@@ -191,6 +199,11 @@ export default async function Home() {
           </div>
         </div>
       </footer>
+
+      {/* Popup de Anúncios */}
+      {announcements && announcements.length > 0 && (
+        <AnnouncementPopup announcements={announcements} />
+      )}
     </main>
   )
 }
