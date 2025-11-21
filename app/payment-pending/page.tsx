@@ -1,10 +1,8 @@
-'use client'
-
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 
-export default function PaymentPending() {
+function PaymentPendingContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const startedAt = searchParams.get('startedAt')
@@ -120,5 +118,17 @@ export default function PaymentPending() {
                 )}
             </div>
         </main>
+    )
+}
+
+export default function PaymentPending() {
+    return (
+        <Suspense fallback={
+            <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
+                <Loader2 className="w-16 h-16 text-blue-500 animate-spin" />
+            </main>
+        }>
+            <PaymentPendingContent />
+        </Suspense>
     )
 }
