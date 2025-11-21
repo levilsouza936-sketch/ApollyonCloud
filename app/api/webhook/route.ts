@@ -2,7 +2,6 @@ import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { MercadoPagoConfig, Payment } from 'mercadopago'
 import { createClient } from '@/utils/supabase/server'
-import crypto from 'crypto'
 
 const client = new MercadoPagoConfig({
     accessToken: process.env.MP_ACCESS_TOKEN!,
@@ -10,124 +9,106 @@ const client = new MercadoPagoConfig({
 })
 
 export async function POST(request: Request) {
-    const body = await request.json()
-    const headersList = headers()
+    try {
+        const body = await request.json()
+        console.log('Webhook: Recebido:', JSON.stringify(body, null, 2))
 
-    // Validação de segurança (Recomendado pelo Mercado Pago)
-    // O x-signature contém ts e v1 (hash)
-    const xSignature = headersList.get('x-signature')
-    const xRequestId = headersList.get('x-request-id')
-
-    if (!xSignature || !xRequestId) {
-        return NextResponse.json({ error: 'Missing signature' }, { status: 400 })
-    }
-
-    // Extrair partes da assinatura
-    const parts = xSignature.split(',')
-    let ts
-    let hash
-
-    parts.forEach(part => {
-        const [key, value] = part.split('=')
-        if (key && value) {
-            const trimmedKey = key.trim()
-            const trimmedValue = value.trim()
-            if (trimmedKey === 'ts') {
-                ts = trimmedValue
-            } else if (trimmedKey === 'v1') {
-                hash = trimmedValue
-            }
+        // Verificar se é evento de pagamento
+        if (body.type !== 'payment') {
+            console.log('Webhook: Evento ignorado (não é pagamento)')
+            return NextResponse.json({ received: true }, { status: 200 })
         }
-    })
 
-    // Validar HMAC se o segredo estiver configurado
-    // Validar HMAC se o segredo estiver configurado
-    /*
-    const secret = process.env.MP_WEBHOOK_SECRET
-    if (secret && ts && hash) {
-        const manifest = `id:${body.data.id};request-id:${xRequestId};ts:${ts};`
-        const hmac = crypto.createHmac('sha256', secret).update(manifest).digest('hex')
-
-        if (hmac !== hash) {
-            console.error('Assinatura inválida')
-            return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+        const paymentId = body.data?.id
+        if (!paymentId) {
+            console.error('Webhook: ID de pagamento ausente')
+            return NextResponse.json({ received: true }, { status: 200 })
         }
-    }
-    */
-    console.log('Webhook: Assinatura ignorada para debug')
 
-    // Processar evento
-    if (body.type === 'payment') {
-        const paymentId = body.data.id
-        console.log(`Webhook: Recebido evento de pagamento ${paymentId}`)
+        console.log(`Webhook: Processando pagamento ${paymentId}`)
 
+        // Buscar informações do pagamento no Mercado Pago
         const paymentClient = new Payment(client)
+        let payment
 
         try {
-            const payment = await paymentClient.get({ id: paymentId })
-            console.log(`Webhook: Status do pagamento ${paymentId}: ${payment.status}`)
-
-            if (payment.status === 'approved') {
-                const userId = payment.metadata.user_id
-                const plan = payment.metadata.plan
-                const cycle = payment.metadata.cycle
-
-                console.log('Webhook: Metadados extraídos:', { userId, plan, cycle })
-
-                if (userId && plan && cycle) {
-                    const supabase = await createClient()
-
-                    // Calcular expiração
-                    const expiresAt = new Date()
-                    if (cycle === 'weekly') {
-                        expiresAt.setDate(expiresAt.getDate() + 7)
-                    } else {
-                        expiresAt.setMonth(expiresAt.getMonth() + 1)
-                    }
-
-                    // Buscar ID do produto
-                    const { data: product, error: productError } = await supabase
-                        .from('products')
-                        .select('id')
-                        .ilike('name', `%${plan}%`) // Busca aproximada (Standard ou Elite)
-                        .single()
-
-                    if (productError || !product) {
-                        console.error('Webhook: Produto não encontrado ou erro:', productError)
-                        return NextResponse.json({ error: 'Product not found' }, { status: 400 })
-                    }
-
-                    console.log(`Webhook: Produto encontrado: ${product.id}. Criando assinatura...`)
-
-                    // Inserir ou atualizar assinatura
-                    const { error } = await supabase
-                        .from('subscriptions')
-                        .insert({
-                            user_id: userId,
-                            status: 'active',
-                            product_id: product.id,
-                            expires_at: expiresAt.toISOString(),
-                            metadata: {
-                                payment_id: paymentId,
-                                cycle: cycle
-                            }
-                        })
-
-                    if (error) {
-                        console.error('Webhook: Erro ao salvar assinatura:', error)
-                        return NextResponse.json({ error: 'Database error' }, { status: 500 })
-                    }
-
-                    console.log('Webhook: Assinatura ativada com sucesso!')
-                } else {
-                    console.error('Webhook: Metadados incompletos no pagamento')
-                }
-            }
+            payment = await paymentClient.get({ id: paymentId })
+            console.log(`Webhook: Pagamento encontrado. Status: ${payment.status}`)
         } catch (error) {
-            console.error('Webhook: Erro ao processar pagamento:', error)
-            return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+            console.error(`Webhook: Erro ao buscar pagamento ${paymentId}:`, error)
+            // Retornar 200 para não ficar em loop de retry
+            return NextResponse.json({ received: true, error: 'Payment not found' }, { status: 200 })
         }
-    }
 
-    return NextResponse.json({ received: true }, { status: 200 })
+        // Processar apenas pagamentos aprovados
+        if (payment.status !== 'approved') {
+            console.log(`Webhook: Pagamento ${paymentId} não aprovado (status: ${payment.status})`)
+            return NextResponse.json({ received: true }, { status: 200 })
+        }
+
+        // Extrair metadados
+        const userId = payment.metadata?.user_id
+        const plan = payment.metadata?.plan
+        const cycle = payment.metadata?.cycle
+
+        console.log('Webhook: Metadados:', { userId, plan, cycle })
+
+        if (!userId || !plan || !cycle) {
+            console.error('Webhook: Metadados incompletos')
+            return NextResponse.json({ received: true, error: 'Missing metadata' }, { status: 200 })
+        }
+
+        // Conectar ao Supabase
+        const supabase = await createClient()
+
+        // Calcular data de expiração
+        const expiresAt = new Date()
+        if (cycle === 'weekly') {
+            expiresAt.setDate(expiresAt.getDate() + 7)
+        } else {
+            expiresAt.setMonth(expiresAt.getMonth() + 1)
+        }
+
+        // Buscar produto
+        const { data: product, error: productError } = await supabase
+            .from('products')
+            .select('id')
+            .ilike('name', `%${plan}%`)
+            .single()
+
+        if (productError || !product) {
+            console.error('Webhook: Produto não encontrado:', productError)
+            return NextResponse.json({ received: true, error: 'Product not found' }, { status: 200 })
+        }
+
+        console.log(`Webhook: Produto ${plan} encontrado (ID: ${product.id})`)
+
+        // Criar assinatura
+        const { error: insertError } = await supabase
+            .from('subscriptions')
+            .insert({
+                user_id: userId,
+                status: 'active',
+                product_id: product.id,
+                expires_at: expiresAt.toISOString(),
+                metadata: {
+                    payment_id: paymentId,
+                    cycle: cycle
+                }
+            })
+
+        if (insertError) {
+            console.error('Webhook: Erro ao criar assinatura:', insertError)
+            return NextResponse.json({ received: true, error: 'Database error' }, { status: 200 })
+        }
+
+        console.log('Webhook: ✅ Assinatura criada com sucesso!')
+
+        return NextResponse.json({ received: true, status: 'subscription_created' }, { status: 200 })
+
+    } catch (error) {
+        console.error('Webhook: Erro crítico:', error)
+        // Sempre retornar 200 para evitar retry infinito do MP
+        return NextResponse.json({ received: true, error: 'Internal error' }, { status: 200 })
+    }
 }
