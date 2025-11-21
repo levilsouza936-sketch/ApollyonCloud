@@ -55,15 +55,20 @@ export async function POST(request: Request) {
     // Processar evento
     if (body.type === 'payment') {
         const paymentId = body.data.id
+        console.log(`Webhook: Recebido evento de pagamento ${paymentId}`)
+
         const paymentClient = new Payment(client)
 
         try {
             const payment = await paymentClient.get({ id: paymentId })
+            console.log(`Webhook: Status do pagamento ${paymentId}: ${payment.status}`)
 
             if (payment.status === 'approved') {
                 const userId = payment.metadata.user_id
                 const plan = payment.metadata.plan
                 const cycle = payment.metadata.cycle
+
+                console.log('Webhook: Metadados extraídos:', { userId, plan, cycle })
 
                 if (userId && plan && cycle) {
                     const supabase = await createClient()
@@ -77,35 +82,45 @@ export async function POST(request: Request) {
                     }
 
                     // Buscar ID do produto
-                    const { data: product } = await supabase
+                    const { data: product, error: productError } = await supabase
                         .from('products')
                         .select('id')
                         .ilike('name', `%${plan}%`) // Busca aproximada (Standard ou Elite)
                         .single()
 
-                    if (product) {
-                        // Inserir ou atualizar assinatura
-                        const { error } = await supabase
-                            .from('subscriptions')
-                            .insert({
-                                user_id: userId,
-                                status: 'active',
-                                product_id: product.id,
-                                expires_at: expiresAt.toISOString(),
-                                metadata: {
-                                    payment_id: paymentId,
-                                    cycle: cycle
-                                }
-                            })
-
-                        if (error) {
-                            console.error('Erro ao salvar assinatura:', error)
-                        }
+                    if (productError || !product) {
+                        console.error('Webhook: Produto não encontrado ou erro:', productError)
+                        return NextResponse.json({ error: 'Product not found' }, { status: 400 })
                     }
+
+                    console.log(`Webhook: Produto encontrado: ${product.id}. Criando assinatura...`)
+
+                    // Inserir ou atualizar assinatura
+                    const { error } = await supabase
+                        .from('subscriptions')
+                        .insert({
+                            user_id: userId,
+                            status: 'active',
+                            product_id: product.id,
+                            expires_at: expiresAt.toISOString(),
+                            metadata: {
+                                payment_id: paymentId,
+                                cycle: cycle
+                            }
+                        })
+
+                    if (error) {
+                        console.error('Webhook: Erro ao salvar assinatura:', error)
+                        return NextResponse.json({ error: 'Database error' }, { status: 500 })
+                    }
+
+                    console.log('Webhook: Assinatura ativada com sucesso!')
+                } else {
+                    console.error('Webhook: Metadados incompletos no pagamento')
                 }
             }
         } catch (error) {
-            console.error('Erro ao processar pagamento:', error)
+            console.error('Webhook: Erro ao processar pagamento:', error)
             return NextResponse.json({ error: 'Internal error' }, { status: 500 })
         }
     }

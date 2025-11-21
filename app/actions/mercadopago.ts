@@ -60,7 +60,8 @@ export async function createMercadoPagoPreference(plan: 'Standard' | 'Elite', cy
                     failure: `${origin}/checkout?status=failure`,
                     pending: `${origin}/checkout?status=pending`
                 },
-                // auto_return: 'approved', // Desativado temporariamente pois exige HTTPS/Domínio válido
+                auto_return: 'approved',
+                notification_url: 'https://apollyoncloud.com/api/webhook',
                 external_reference: user.id,
                 metadata: {
                     user_id: user.id,
