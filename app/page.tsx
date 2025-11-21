@@ -50,8 +50,8 @@ export default async function Home() {
       {/* Header */}
       <header className="container mx-auto px-4 py-6 flex justify-between items-center border-b border-slate-800/50 sticky top-0 bg-slate-950/80 backdrop-blur-md z-50">
         <div className="flex items-center gap-2">
-          <div className="w-10 h-10 bg-violet-600/20 rounded-lg flex items-center justify-center shadow-lg shadow-violet-500/20 overflow-hidden">
-            <img src="/logo.png" alt="Apollyon Cloud Logo" className="w-full h-full object-contain p-1" />
+          <div className="w-10 h-10 flex items-center justify-center overflow-hidden">
+            <img src="/logo.png" alt="Apollyon Cloud Logo" className="w-full h-full object-contain" />
           </div>
           <span className="text-xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
             Apollyon Cloud
