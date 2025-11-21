@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { MercadoPagoConfig, Payment } from 'mercadopago'
-import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 
 const client = new MercadoPagoConfig({
     accessToken: process.env.MP_ACCESS_TOKEN!,
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
             }, { status: 400 })
         }
 
-        const supabase = await createClient()
+        const supabase = createAdminClient()
 
         const expiresAt = new Date()
         if (cycle === 'weekly') {
@@ -74,13 +74,7 @@ export async function GET(request: Request) {
                 user_id: userId,
                 status: 'active',
                 product_id: product.id,
-                expires_at: expiresAt.toISOString(),
-                metadata: {
-                    payment_id: paymentId,
-                    cycle: cycle,
-                    amount: payment.transaction_amount,
-                    payment_method: payment.payment_method_id
-                }
+                expires_at: expiresAt.toISOString()
             })
             .select()
 
