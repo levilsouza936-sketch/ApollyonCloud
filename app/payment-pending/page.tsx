@@ -1,18 +1,22 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 
 export default function PaymentPending() {
     const router = useRouter()
+    const searchParams = useSearchParams()
+    const startedAt = searchParams.get('startedAt')
+
     const [status, setStatus] = useState<'checking' | 'approved' | 'failed'>('checking')
     const [attempts, setAttempts] = useState(0)
     const maxAttempts = 60 // 5 minutos (5s * 60 = 300s)
 
     const checkPaymentStatus = async () => {
         try {
-            const response = await fetch('/api/check-subscription')
+            const query = startedAt ? `?startedAt=${startedAt}` : ''
+            const response = await fetch(`/api/check-subscription${query}`)
             const data = await response.json()
 
             if (data.hasActiveSubscription) {

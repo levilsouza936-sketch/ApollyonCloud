@@ -49,7 +49,8 @@ export default function CheckoutClient({
                 window.open(result.url, '_blank')
 
                 // Redirecionar para página de verificação na aba atual
-                router.push('/payment-pending')
+                const startedAt = new Date().toISOString()
+                router.push(`/payment-pending?startedAt=${startedAt}`)
             }
         } catch (err) {
             console.error('Erro ao processar pagamento:', err)
