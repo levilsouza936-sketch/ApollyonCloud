@@ -47,3 +47,19 @@ export async function toggleCoupon(couponId: string, active: boolean) {
     revalidatePath('/admin/coupons')
     return { success: true }
 }
+
+export async function deleteCoupon(couponId: string) {
+    const supabase = createAdminClient()
+
+    const { error } = await supabase
+        .from('coupons')
+        .delete()
+        .eq('id', couponId)
+
+    if (error) {
+        return { success: false, error: error.message }
+    }
+
+    revalidatePath('/admin/coupons')
+    return { success: true }
+}

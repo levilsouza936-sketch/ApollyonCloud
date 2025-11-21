@@ -9,7 +9,7 @@ function PaymentPendingContent() {
     const searchParams = useSearchParams()
     const startedAt = searchParams.get('startedAt')
 
-    const [status, setStatus] = useState<'checking' | 'approved' | 'failed'>('checking')
+    const [status, setStatus] = useState<'checking' | 'approved' | 'failed' | 'cancelled'>('checking')
     const [attempts, setAttempts] = useState(0)
     const maxAttempts = 60 // 5 minutos (5s * 60 = 300s)
 
@@ -32,7 +32,15 @@ function PaymentPendingContent() {
         }
     }
 
+    const handleCancel = () => {
+        if (confirm('Tem certeza que deseja cancelar a verificação? Você poderá tentar novamente depois.')) {
+            setStatus('cancelled')
+        }
+    }
+
     useEffect(() => {
+        if (status !== 'checking') return
+
         // Solicitar permissão para notificações
         if ('Notification' in window && Notification.permission === 'default') {
             Notification.requestPermission()
@@ -48,7 +56,7 @@ function PaymentPendingContent() {
         }, 5000)
 
         return () => clearInterval(interval)
-    }, [attempts])
+    }, [attempts, status])
 
     useEffect(() => {
         if (status === 'approved' && 'Notification' in window && Notification.permission === 'granted') {
@@ -76,18 +84,26 @@ function PaymentPendingContent() {
                                 <strong>Não feche esta janela!</strong>
                             </p>
                         </div>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-slate-500 mb-4">
                             Tentativa {attempts + 1} de {maxAttempts}
                         </p>
-                        <button
-                            onClick={() => {
-                                setAttempts(0)
-                                checkPaymentStatus()
-                            }}
-                            className="mt-4 px-6 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors"
-                        >
-                            Verificar Agora
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => {
+                                    setAttempts(0)
+                                    checkPaymentStatus()
+                                }}
+                                className="flex-1 px-6 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors"
+                            >
+                                Verificar Agora
+                            </button>
+                            <button
+                                onClick={handleCancel}
+                                className="flex-1 px-6 py-2 bg-red-900/20 hover:bg-red-900/30 text-red-400 rounded-lg text-sm transition-colors border border-red-800/30"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
                     </>
                 )}
 
@@ -128,6 +144,36 @@ function PaymentPendingContent() {
                                 className="w-full py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-semibold transition-colors"
                             >
                                 Ir para o Dashboard
+                            </button>
+                        </div>
+                    </>
+                )}
+
+                {status === 'cancelled' && (
+                    <>
+                        <AlertCircle className="w-16 h-16 text-slate-500 mx-auto mb-4" />
+                        <h1 className="text-2xl font-bold mb-2 text-slate-400">Verificação Cancelada</h1>
+                        <p className="text-slate-400 mb-6">
+                            Você cancelou a verificação de pagamento.
+                            <br />
+                            Se você completou o pagamento, pode tentar novamente.
+                        </p>
+                        <div className="space-y-3">
+                            <button
+                                onClick={() => {
+                                    setStatus('checking')
+                                    setAttempts(0)
+                                    checkPaymentStatus()
+                                }}
+                                className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-semibold transition-colors"
+                            >
+                                Retomar Verificação
+                            </button>
+                            <button
+                                onClick={() => router.push('/')}
+                                className="w-full py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-semibold transition-colors"
+                            >
+                                Voltar para Página Inicial
                             </button>
                         </div>
                     </>

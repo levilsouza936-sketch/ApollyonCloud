@@ -1,8 +1,8 @@
 'use client'
 // Componente de lista de cupons
 
-import { toggleCoupon } from './actions'
-import { Tag, Clock, Users, ToggleLeft, ToggleRight } from 'lucide-react'
+import { toggleCoupon, deleteCoupon } from './actions'
+import { Tag, Clock, Users, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react'
 
 interface Coupon {
     id: string
@@ -23,6 +23,19 @@ export default function CouponList({ coupons }: { coupons: Coupon[] }) {
             alert(!currentActive ? 'Cupom ativado!' : 'Cupom desativado!')
         } else {
             alert('Erro: ' + result.error)
+        }
+    }
+
+    const handleDelete = async (couponId: string, code: string) => {
+        if (!confirm(`Tem certeza que deseja deletar o cupom "${code}"? Esta ação não pode ser desfeita.`)) {
+            return
+        }
+
+        const result = await deleteCoupon(couponId)
+        if (result.success) {
+            alert('Cupom deletado com sucesso!')
+        } else {
+            alert('Erro ao deletar cupom: ' + result.error)
         }
     }
 
@@ -66,25 +79,34 @@ export default function CouponList({ coupons }: { coupons: Coupon[] }) {
                                             </span>
                                         )}
                                     </div>
-                                    <button
-                                        onClick={() => handleToggle(coupon.id, coupon.active)}
-                                        className={`flex items-center gap-1 px-3 py-1 rounded transition-colors ${coupon.active
-                                            ? 'bg-red-600 hover:bg-red-500'
-                                            : 'bg-green-600 hover:bg-green-500'
-                                            }`}
-                                    >
-                                        {coupon.active ? (
-                                            <>
-                                                <ToggleRight className="w-4 h-4" />
-                                                Desativar
-                                            </>
-                                        ) : (
-                                            <>
-                                                <ToggleLeft className="w-4 h-4" />
-                                                Ativar
-                                            </>
-                                        )}
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handleToggle(coupon.id, coupon.active)}
+                                            className={`flex items-center gap-1 px-3 py-1 rounded transition-colors ${coupon.active
+                                                ? 'bg-red-600 hover:bg-red-500'
+                                                : 'bg-green-600 hover:bg-green-500'
+                                                }`}
+                                        >
+                                            {coupon.active ? (
+                                                <>
+                                                    <ToggleRight className="w-4 h-4" />
+                                                    Desativar
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <ToggleLeft className="w-4 h-4" />
+                                                    Ativar
+                                                </>
+                                            )}
+                                        </button>
+                                        <button
+                                            onClick={() => handleDelete(coupon.id, coupon.code)}
+                                            className="flex items-center gap-1 px-3 py-1 rounded transition-colors bg-slate-800 hover:bg-red-600 text-red-400 hover:text-white"
+                                            title="Deletar cupom"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4 text-sm">
