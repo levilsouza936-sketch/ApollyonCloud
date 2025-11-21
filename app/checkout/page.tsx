@@ -34,8 +34,8 @@ export default async function Checkout({
         .eq('status', 'active')
         .order('created_at', { ascending: false })
 
-    const hasActiveSubscription = activeSubscriptions && activeSubscriptions.length > 0
-        && new Date(activeSubscriptions[0].expires_at) > new Date()
+    const hasActiveSubscription = !!(activeSubscriptions && activeSubscriptions.length > 0
+        && new Date(activeSubscriptions[0].expires_at) > new Date())
     const currentPlan = hasActiveSubscription && activeSubscriptions[0].products
         ? String((activeSubscriptions[0].products as any).name || 'seu plano atual')
         : null
