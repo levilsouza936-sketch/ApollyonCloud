@@ -45,6 +45,31 @@ export default async function Home() {
 
 
 
+  // Buscar preços dos produtos
+  const { data: products } = await supabase
+    .from('products')
+    .select('name, price, cycle')
+    .eq('active', true)
+
+  const prices = {
+    Standard: { weekly: 0, monthly: 0 },
+    Elite: { weekly: 0, monthly: 0 }
+  }
+
+  if (products) {
+    products.forEach(product => {
+      const name = product.name.toLowerCase()
+      const price = Number(product.price)
+      const cycle = product.cycle as 'weekly' | 'monthly'
+
+      if (name.includes('standard')) {
+        prices.Standard[cycle] = price
+      } else if (name.includes('elite')) {
+        prices.Elite[cycle] = price
+      }
+    })
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 text-white selection:bg-violet-500/30">
       {/* Header */}
@@ -149,7 +174,7 @@ export default async function Home() {
 
       {/* Pricing Section */}
       <div id="pricing">
-        <PricingSection user={user} currentPlan={currentPlan} />
+        <PricingSection user={user} currentPlan={currentPlan} prices={prices} />
       </div>
 
       {/* Footer */}

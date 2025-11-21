@@ -22,5 +22,6 @@ export async function updateProduct(productId: string, data: {
     }
 
     revalidatePath('/admin/products')
+    revalidatePath('/')
     return { success: true }
 }

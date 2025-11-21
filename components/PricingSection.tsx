@@ -15,9 +15,21 @@ type CurrentPlan = {
     cycle: 'weekly' | 'monthly'
 } | null
 
-export default function PricingSection({ user, currentPlan }: { user: User; currentPlan: CurrentPlan }) {
+type Prices = {
+    Standard: { weekly: number; monthly: number }
+    Elite: { weekly: number; monthly: number }
+}
+
+export default function PricingSection({ user, currentPlan, prices }: { user: User; currentPlan: CurrentPlan; prices: Prices }) {
     const [billingCycle, setBillingCycle] = useState<'weekly' | 'monthly'>('monthly')
     const router = useRouter()
+
+    const formatPrice = (value: number) => {
+        return new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+        }).format(value)
+    }
 
     const handleSubscribe = (plan: 'Standard' | 'Elite') => {
         if (!user) {
@@ -143,7 +155,7 @@ export default function PricingSection({ user, currentPlan }: { user: User; curr
                             <span className="text-slate-400 mb-1">Preço {billingCycle === 'weekly' ? 'Semanal' : 'Mensal'}</span>
                             <div className="text-right">
                                 <span className="text-3xl font-bold text-white">
-                                    {billingCycle === 'weekly' ? 'R$ 1,00' : 'R$ 89,90'}
+                                    {formatPrice(prices.Standard[billingCycle])}
                                 </span>
                             </div>
                         </div>
@@ -221,7 +233,7 @@ export default function PricingSection({ user, currentPlan }: { user: User; curr
                             <span className="text-slate-400 mb-1">Preço {billingCycle === 'weekly' ? 'Semanal' : 'Mensal'}</span>
                             <div className="text-right">
                                 <span className="text-3xl font-bold text-violet-400">
-                                    {billingCycle === 'weekly' ? 'R$ 74,99' : 'R$ 129,90'}
+                                    {formatPrice(prices.Elite[billingCycle])}
                                 </span>
                             </div>
                         </div>
