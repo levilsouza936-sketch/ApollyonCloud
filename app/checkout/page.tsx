@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
-import CheckoutClient from './checkout-client.tsx'
+import CheckoutClient from './checkout-client'
 
 export default async function Checkout({
     searchParams,

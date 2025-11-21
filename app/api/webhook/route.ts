@@ -1,6 +1,6 @@
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
-import { MercadoPagoConfig, Payment } from 'mercadopago'
+import { MercadoPagoConfig, Payment, MerchantOrder } from 'mercadopago'
 import { createClient } from '@/utils/supabase/server'
 
 const client = new MercadoPagoConfig({
@@ -9,25 +9,34 @@ const client = new MercadoPagoConfig({
 })
 
 export async function POST(request: Request) {
-    console.log('========================================')
-    console.log('WEBHOOK: Recebido POST')
-    console.log('========================================')
-
     try {
+        console.log('========================================')
+        console.log('WEBHOOK: Recebido POST')
+        // Parsear o corpo da requisição
         const body = await request.json()
-        console.log('WEBHOOK: Body completo:', JSON.stringify(body, null, 2))
-
-        // Verificar se é evento de pagamento
-        if (body.type !== 'payment') {
-            console.log(`WEBHOOK: Evento ignorado (tipo: ${body.type})`)
+        // Extrair paymentId (pode vir de payment ou merchant_order)
+        let paymentId: string | undefined
+        if (body.type === 'payment') {
+            paymentId = body.data?.id
+        } else if (body.type === 'merchant_order' && body.resource) {
+            const parts = body.resource.split('/')
+            const merchantOrderId = parts[parts.length - 1]
+            console.log(`WEBHOOK: Buscando merchant_order ${merchantOrderId}`)
+            try {
+                const merchantOrderClient = new MerchantOrder(client)
+                const merchantOrder = await merchantOrderClient.get(merchantOrderId)
+                if (merchantOrder && merchantOrder.payments && merchantOrder.payments.length > 0) {
+                    paymentId = String(merchantOrder.payments[0].id)
+                }
+            } catch (e) {
+                console.error('WEBHOOK: Erro ao buscar merchant_order', e)
+            }
+        }
+        if (!paymentId) {
+            console.log(`WEBHOOK: Evento ignorado (sem paymentId) tipo: ${body.type}`)
             return NextResponse.json({ received: true, ignored: true }, { status: 200 })
         }
 
-        const paymentId = body.data?.id
-        if (!paymentId) {
-            console.error('WEBHOOK: ❌ ID de pagamento ausente no body.data.id')
-            return NextResponse.json({ received: true, error: 'no_payment_id' }, { status: 200 })
-        }
 
         console.log(`WEBHOOK: ✅ Processando pagamento ID: ${paymentId}`)
         console.log(`WEBHOOK: Action: ${body.action}`)
