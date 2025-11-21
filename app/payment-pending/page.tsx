@@ -1,12 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 
 export default function PaymentPending() {
     const router = useRouter()
-    const searchParams = useSearchParams()
     const [status, setStatus] = useState<'checking' | 'approved' | 'failed'>('checking')
     const [attempts, setAttempts] = useState(0)
     const maxAttempts = 60 // 5 minutos (5s * 60 = 300s)
