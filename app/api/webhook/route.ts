@@ -109,20 +109,41 @@ export async function POST(request: Request) {
         console.log(`WEBHOOK: Data de expiração calculada: ${expiresAt.toISOString()}`)
 
         // Buscar produto
-        console.log(`WEBHOOK: Buscando produto com name ILIKE '%${plan}%'...`)
-        const { data: product, error: productError } = await supabase
-            .from('products')
-            .select('id, name')
-            .ilike('name', `%${plan}%`)
-            .single()
+        let product
+        const productId = payment.metadata?.product_id
 
-        if (productError) {
-            console.error('WEBHOOK: ❌ Erro ao buscar produto:', productError)
-            return NextResponse.json({ received: true, error: 'product_query_error', details: productError }, { status: 200 })
+        if (productId) {
+            console.log(`WEBHOOK: Buscando produto por ID: ${productId}`)
+            const { data: productById, error: idError } = await supabase
+                .from('products')
+                .select('id, name')
+                .eq('id', productId)
+                .single()
+
+            if (!idError && productById) {
+                product = productById
+            } else {
+                console.error('WEBHOOK: ❌ Erro ao buscar produto por ID:', idError)
+            }
         }
 
         if (!product) {
-            console.error(`WEBHOOK: ❌ Produto não encontrado com name ILIKE '%${plan}%'`)
+            console.log(`WEBHOOK: Buscando produto com name ILIKE '%${plan}%'...`)
+            const { data: productByName, error: nameError } = await supabase
+                .from('products')
+                .select('id, name')
+                .ilike('name', `%${plan}%`)
+                .single()
+
+            if (nameError) {
+                console.error('WEBHOOK: ❌ Erro ao buscar produto por nome:', nameError)
+            } else {
+                product = productByName
+            }
+        }
+
+        if (!product) {
+            console.error(`WEBHOOK: ❌ Produto não encontrado (ID: ${productId}, Plan: ${plan})`)
 
             // Listar todos os produtos para debug
             const { data: allProducts } = await supabase.from('products').select('id, name')

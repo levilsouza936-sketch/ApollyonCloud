@@ -110,7 +110,8 @@ export async function createMercadoPagoPreference(
                     plan: plan,
                     cycle: cycle,
                     coupon_id: couponId,
-                    original_price: product.price
+                    original_price: product.price,
+                    product_id: product.id
                 }
             }
         })
